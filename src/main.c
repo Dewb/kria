@@ -93,7 +93,7 @@ typedef struct {
 	u8 llen[NUM_PARAMS];
 	u8 lswap[NUM_PARAMS];
 	time_params tmul[NUM_PARAMS];
-	time_params tdiv[NUM_PARAMS];
+	// time_params tdiv[NUM_PARAMS];
 } kria_pattern;
 
 // TO 96
@@ -163,7 +163,7 @@ __attribute__((__section__(".flash_nvram")))
 static nvram_data_t flashy;
 
 
-
+u8 pos_mul[2][NUM_PARAMS];
 
 ////////////////////////////////////////////////////////////////////////////////
 // prototypes
@@ -203,6 +203,8 @@ static void phase_reset0(void);
 static void phase_reset1(void);
 
 
+bool kria_next_step(uint8_t t, uint8_t p);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // timers
@@ -214,24 +216,7 @@ static softTimer_t monomePollTimer = { .next = NULL, .prev = NULL };
 static softTimer_t monomeRefreshTimer  = { .next = NULL, .prev = NULL };
 
 static softTimer_t note0offTimer = { .next = NULL, .prev = NULL };
-static softTimer_t trans0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t sc0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t note0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t dur0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t oct0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t ac0Timer = { .next = NULL, .prev = NULL };
-static softTimer_t tr0Timer = { .next = NULL, .prev = NULL };
-
 static softTimer_t note1offTimer = { .next = NULL, .prev = NULL };
-static softTimer_t trans1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t sc1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t note1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t dur1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t oct1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t ac1Timer = { .next = NULL, .prev = NULL };
-static softTimer_t tr1Timer = { .next = NULL, .prev = NULL };
-
-
 
 static void clockTimer_callback(void* o) {  
 	if(clock_external == 0) {
@@ -297,209 +282,6 @@ static void note0offTimer_callback(void* o) {
 	}
 }
 
-static void trans0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tTrans] + timeerrors[0][tTrans];
-    timeerrors[0][tTrans] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&trans0Timer, t);
-
-	if(pos[0][tTrans] == k.kp[0][p].lend[tTrans])
-		pos[0][tTrans] = k.kp[0][p].lstart[tTrans];
-	else {
-		pos[0][tTrans]++;
-		if(pos[0][tTrans] > 15)
-			pos[0][tTrans] = 0;
-	}
-
-	trans[0] = k.kp[0][p].trans[pos[0][tTrans]];
-
-	monomeFrameDirty++;
-}
-
-static void sc0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tScale] + timeerrors[0][tScale];
-    timeerrors[0][tScale] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&sc0Timer, t);
-
-	if(pos[0][tScale] == k.kp[0][p].lend[tScale])
-		pos[0][tScale] = k.kp[0][p].lstart[tScale];
-	else {
-		pos[0][tScale]++;
-		if(pos[0][tScale] > 15)
-			pos[0][tScale] = 0;
-	}
-
-	if(sc[0] != k.kp[0][p].sc[pos[0][tScale]]) {
-		sc[0] = k.kp[0][p].sc[pos[0][tScale]];
-		calc_scale(0);
-	}
-
-	monomeFrameDirty++;
-}
-
-static void note0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tNote] + timeerrors[0][tNote];
-    timeerrors[0][tNote] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&note0Timer, t);
-
-	if(pos[0][tNote] == k.kp[0][p].lend[tNote])
-		pos[0][tNote] = k.kp[0][p].lstart[tNote];
-	else {
-		pos[0][tNote]++;
-		if(pos[0][tNote] > 15)
-			pos[0][tNote] = 0;
-	}
-
-	note[0] = k.kp[0][p].note[pos[0][tNote]];
-
-	monomeFrameDirty++;
-}
-
-static void dur0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tDur] + timeerrors[0][tDur];
-    timeerrors[0][tDur] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&dur0Timer, t);
-
-	if(pos[0][tDur] == k.kp[0][p].lend[tDur])
-		pos[0][tDur] = k.kp[0][p].lstart[tDur];
-	else {
-		pos[0][tDur]++;
-		if(pos[0][tDur] > 15)
-			pos[0][tDur] = 0;
-	}
-
-	dur[0] = (k.kp[0][p].dur[pos[0][tDur]]+1) * (k.kp[0][p].dur_mul<<2);
-
-	monomeFrameDirty++;
-}
-
-static void oct0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tOct] + timeerrors[0][tOct];
-    timeerrors[0][tOct] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&oct0Timer, t);
-
-	if(pos[0][tOct] == k.kp[0][p].lend[tOct])
-		pos[0][tOct] = k.kp[0][p].lstart[tOct];
-	else {
-		pos[0][tOct]++;
-		if(pos[0][tOct] > 15)
-			pos[0][tOct] = 0;
-	}	
-
-	oct[0] = k.kp[0][p].oct[pos[0][tOct]];
-
-	monomeFrameDirty++;
-}
-
-static void ac0Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[0][tAc] + timeerrors[0][tAc];
-    timeerrors[0][tAc] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&ac0Timer, t);
-
-    // print_dbg("\r\nt ");
-	// print_dbg_ulong(t >> 16);
-
-
-	if(pos[0][tAc] == k.kp[0][p].lend[tAc])
-		pos[0][tAc] = k.kp[0][p].lstart[tAc];
-	else {
-		pos[0][tAc]++;
-		if(pos[0][tAc] > 15)
-			pos[0][tAc] = 0;
-	}
-
-	ac[0] = k.kp[0][p].ac[pos[0][tAc]];
-
-	monomeFrameDirty++;
-}
-
-
-static void tr0Timer_callback(void* o) {
-	static u32 t;
-
-	if(p_next != p) {
-		p = p_next;
-		phase_reset0();
-		phase_reset1();
-		return;
-	}
-
-	t = calctimes[0][tTr] + timeerrors[0][tTr];
-    timeerrors[0][tTr] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&tr0Timer, t);
-
-	if(pos[0][tTr] == k.kp[0][p].lend[tTr])
-		pos[0][tTr] = k.kp[0][p].lstart[tTr];
-	else {
-		pos[0][tTr]++;
-		if(pos[0][tTr] > 15)
-			pos[0][tTr] = 0;
-	}
-
-	if(k.kp[0][p].tr[pos[0][tTr]]) {
-		gpio_set_gpio_pin(B00);
-		if(ac[0])
-			gpio_set_gpio_pin(B02);
-
-		cv0 = ET[cur_scale[0][note[0]] + (oct[0] * 12) + (trans[0] & 0xf) + ((trans[0] >> 4)*5)];
-
-		need0off = 1;
-		timer_reset_set(&note0offTimer, dur[0]);
-
-		tr[0] = 1;
-	}
-	else
-		tr[0] = 0;
-
-	monomeFrameDirty++;
-
-	// write to DAC
-	spi_selectChip(SPI,DAC_SPI);
-	spi_write(SPI,0x31);	// update A
-	spi_write(SPI,cv0>>4);
-	spi_write(SPI,cv0<<4);
-	spi_unselectChip(SPI,DAC_SPI);
-
-	// spi_selectChip(SPI,DAC_SPI);
-	// spi_write(SPI,0x38);	// update B
-	// spi_write(SPI,cv1>>4);
-	// spi_write(SPI,cv1<<4);
-	// spi_unselectChip(SPI,DAC_SPI);
-}
-
-
 static void note1offTimer_callback(void* o) {
 	if(need1off) {
 		need1off = 0;
@@ -509,221 +291,13 @@ static void note1offTimer_callback(void* o) {
 	}
 }
 
-static void trans1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tTrans] + timeerrors[1][tTrans];
-    timeerrors[1][tTrans] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&trans1Timer, t);
-
-	if(pos[1][tTrans] == k.kp[1][p].lend[tTrans])
-		pos[1][tTrans] = k.kp[1][p].lstart[tTrans];
-	else {
-		pos[1][tTrans]++;
-		if(pos[1][tTrans] > 15)
-			pos[1][tTrans] = 0;
-	}
-
-	trans[1] = k.kp[1][p].trans[pos[1][tTrans]];
-
-	monomeFrameDirty++;
-}
-
-static void sc1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tScale] + timeerrors[1][tScale];
-    timeerrors[1][tScale] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&sc1Timer, t);
-
-	if(pos[1][tScale] == k.kp[1][p].lend[tScale])
-		pos[1][tScale] = k.kp[1][p].lstart[tScale];
-	else {
-		pos[1][tScale]++;
-		if(pos[1][tScale] > 15)
-			pos[1][tScale] = 0;
-	}
-
-	if(sc[1] != k.kp[1][p].sc[pos[1][tScale]]) {
-		sc[1] = k.kp[1][p].sc[pos[1][tScale]];
-		calc_scale(1);
-	}
-
-	monomeFrameDirty++;
-}
-
-static void note1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tNote] + timeerrors[1][tNote];
-    timeerrors[1][tNote] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&note1Timer, t);
-
-	if(pos[1][tNote] == k.kp[1][p].lend[tNote])
-		pos[1][tNote] = k.kp[1][p].lstart[tNote];
-	else {
-		pos[1][tNote]++;
-		if(pos[1][tNote] > 15)
-			pos[1][tNote] = 0;
-	}
-
-	note[1] = k.kp[1][p].note[pos[1][tNote]];
-
-	monomeFrameDirty++;
-}
-
-static void dur1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tDur] + timeerrors[1][tDur];
-    timeerrors[1][tDur] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&dur1Timer, t);
-
-	if(pos[1][tDur] == k.kp[1][p].lend[tDur])
-		pos[1][tDur] = k.kp[1][p].lstart[tDur];
-	else {
-		pos[1][tDur]++;
-		if(pos[1][tDur] > 15)
-			pos[1][tDur] = 0;
-	}
-
-	dur[1] = (k.kp[1][p].dur[pos[1][tDur]]+1) * (k.kp[1][p].dur_mul<<2);
-
-	monomeFrameDirty++;
-}
-
-static void oct1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tOct] + timeerrors[1][tOct];
-    timeerrors[1][tOct] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&oct1Timer, t);
-
-	if(pos[1][tOct] == k.kp[1][p].lend[tOct])
-		pos[1][tOct] = k.kp[1][p].lstart[tOct];
-	else {
-		pos[1][tOct]++;
-		if(pos[1][tOct] > 15)
-			pos[1][tOct] = 0;
-	}	
-
-	oct[1] = k.kp[1][p].oct[pos[1][tOct]];
-
-	monomeFrameDirty++;
-}
-
-static void ac1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tAc] + timeerrors[1][tAc];
-    timeerrors[1][tAc] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&ac1Timer, t);
-
-    // print_dbg("\r\nt ");
-	// print_dbg_ulong(t >> 16);
-
-
-	if(pos[1][tAc] == k.kp[1][p].lend[tAc])
-		pos[1][tAc] = k.kp[1][p].lstart[tAc];
-	else {
-		pos[1][tAc]++;
-		if(pos[1][tAc] > 15)
-			pos[1][tAc] = 0;
-	}
-
-	ac[1] = k.kp[1][p].ac[pos[1][tAc]];
-
-	monomeFrameDirty++;
-}
-
-
-static void tr1Timer_callback(void* o) {
-	static u32 t;
-
-	t = calctimes[1][tTr] + timeerrors[1][tTr];
-    timeerrors[1][tTr] = t & 0xffff;
-    t >>= 16;
-    if(t<10) t = 10;
-
-    timer_set(&tr1Timer, t);
-
-	if(pos[1][tTr] == k.kp[1][p].lend[tTr])
-		pos[1][tTr] = k.kp[1][p].lstart[tTr];
-	else {
-		pos[1][tTr]++;
-		if(pos[1][tTr] > 15)
-			pos[1][tTr] = 0;
-	}
-
-	if(k.kp[1][p].tr[pos[1][tTr]]) {
-		gpio_set_gpio_pin(B01);
-		if(ac[1])
-			gpio_set_gpio_pin(B03);
-
-		cv1 = ET[cur_scale[1][note[1]] + (oct[1] * 12) + (trans[1] & 0xf) + ((trans[1] >> 4)*5)];
-
-		need1off = 1;
-		timer_reset_set(&note1offTimer, dur[1]);
-
-		tr[1] = 1;
-	}
-	else
-		tr[1] = 0;
-
-	monomeFrameDirty++;
-
-	// write to DAC
-	// spi_selectChip(SPI,DAC_SPI);
-	// spi_write(SPI,0x31);	// update A
-	// spi_write(SPI,cv0>>4);
-	// spi_write(SPI,cv0<<4);
-	// spi_unselectChip(SPI,DAC_SPI);
-
-	spi_selectChip(SPI,DAC_SPI);
-	spi_write(SPI,0x38);	// update B
-	spi_write(SPI,cv1>>4);
-	spi_write(SPI,cv1<<4);
-	spi_unselectChip(SPI,DAC_SPI);
-}
 
 static void phase_reset0() {
-	timer_manual(&trans0Timer);
-	timer_manual(&sc0Timer);
-	timer_manual(&note0Timer);
-	timer_manual(&dur0Timer);
-	timer_manual(&oct0Timer);
-	timer_manual(&ac0Timer);
-	timer_manual(&tr0Timer);
 	for(u8 i1=0;i1<NUM_PARAMS;i1++)
 		pos[0][i1] = k.kp[0][p].lend[i1];
 }
 
 static void phase_reset1() {
-	timer_manual(&trans1Timer);
-	timer_manual(&sc1Timer);
-	timer_manual(&note1Timer);
-	timer_manual(&dur1Timer);
-	timer_manual(&oct1Timer);
-	timer_manual(&ac1Timer);
-	timer_manual(&tr1Timer);
 	for(u8 i1=0;i1<NUM_PARAMS;i1++)
 		pos[1][i1] = k.kp[1][p].lend[1];
 }
@@ -738,9 +312,138 @@ static void phase_reset1() {
 ////////////////////////////////////////////////////////////////////////////////
 // application clock code
 
+bool kria_next_step(uint8_t t, uint8_t param) {
+	pos_mul[t][param]++;
+
+	// if(pos_mul[t][p] >= k.p[k.pattern].t[t].tmul[p]) {
+	if(pos_mul[t][param] >= k.kp[t][p].tmul[param]) {
+		// if(pos[t][p] == k.p[k.pattern].t[t].lend[p])
+		if(pos[t][param] == k.kp[t][p].lend[param])
+			// pos[t][p] = k.p[k.pattern].t[t].lstart[p];
+			pos[t][param] = k.kp[t][p].lstart[param];
+		else {
+			pos[t][param]++;
+			if(pos[t][param] > 15)
+				pos[t][param] = 0;
+		}
+		pos_mul[t][param] = 0;
+		return true;
+	}
+	else
+		return false;
+}
+
+
 void clock(u8 phase) {
 	if(phase) {
 		gpio_set_gpio_pin(B10);
+
+		if(p_next != p) {
+			p = p_next;
+			phase_reset0();
+			phase_reset1();
+			return;
+		}
+
+		if(kria_next_step(0,tTrans))
+			trans[0] = k.kp[0][p].trans[pos[0][tTrans]];
+
+		if(kria_next_step(0, tScale)) {
+			if(sc[0] != k.kp[0][p].sc[pos[0][tScale]]) {
+				sc[0] = k.kp[0][p].sc[pos[0][tScale]];
+				calc_scale(0);
+			}
+		}
+
+		if(kria_next_step(0, tDur))
+			dur[0] = (k.kp[0][p].dur[pos[0][tDur]]+1) * (k.kp[0][p].dur_mul<<2);
+
+		if(kria_next_step(0, tOct))
+			oct[0] = k.kp[0][p].oct[pos[0][tOct]];
+
+		if(kria_next_step(0, tNote))
+			note[0] = k.kp[0][p].note[pos[0][tNote]];
+
+		if(kria_next_step(0, tAc))
+			ac[0] = k.kp[0][p].ac[pos[0][tAc]];
+
+		if(kria_next_step(0,tTr)) {
+			if(k.kp[0][p].tr[pos[0][tTr]]) {
+				gpio_set_gpio_pin(B00);
+				if(ac[0])
+					gpio_set_gpio_pin(B02);
+
+				cv0 = ET[cur_scale[0][note[0]] + (oct[0] * 12) + (trans[0] & 0xf) + ((trans[0] >> 4)*5)];
+
+				need0off = 1;
+				timer_reset_set(&note0offTimer, dur[0]);
+
+				tr[0] = 1;
+			}
+			else
+				tr[0] = 0;
+		}
+
+		if(p_next != p) {
+			p = p_next;
+			phase_reset0();
+			phase_reset1();
+			return;
+		}
+
+		if(kria_next_step(1,tTrans))
+			trans[1] = k.kp[1][p].trans[pos[1][tTrans]];
+
+		if(kria_next_step(1, tScale)) {
+			if(sc[1] != k.kp[1][p].sc[pos[1][tScale]]) {
+				sc[1] = k.kp[1][p].sc[pos[1][tScale]];
+				calc_scale(1);
+			}
+		}
+
+		if(kria_next_step(1, tDur))
+			dur[1] = (k.kp[1][p].dur[pos[1][tDur]]+1) * (k.kp[1][p].dur_mul<<2);
+
+		if(kria_next_step(1, tOct))
+			oct[1] = k.kp[1][p].oct[pos[1][tOct]];
+
+		if(kria_next_step(1, tNote))
+			note[1] = k.kp[1][p].note[pos[1][tNote]];
+
+		if(kria_next_step(1, tAc))
+			ac[1] = k.kp[1][p].ac[pos[1][tAc]];
+
+		if(kria_next_step(1,tTr)) {
+			if(k.kp[1][p].tr[pos[1][tTr]]) {
+				gpio_set_gpio_pin(B01);
+				if(ac[1])
+					gpio_set_gpio_pin(B03);
+
+				cv1 = ET[cur_scale[1][note[1]] + (oct[1] * 12) + (trans[1] & 0xf) + ((trans[1] >> 4)*5)];
+
+				need1off = 1;
+				timer_reset_set(&note1offTimer, dur[1]);
+
+				tr[1] = 1;
+			}
+			else
+				tr[1] = 0;
+		}
+
+		monomeFrameDirty++;
+
+		// write to DAC
+		spi_selectChip(SPI,DAC_SPI);
+		spi_write(SPI,0x31);	// update A
+		spi_write(SPI,cv0>>4);
+		spi_write(SPI,cv0<<4);
+		spi_unselectChip(SPI,DAC_SPI);
+
+		spi_selectChip(SPI,DAC_SPI);
+		spi_write(SPI,0x38);	// update B
+		spi_write(SPI,cv1>>4);
+		spi_write(SPI,cv1<<4);
+		spi_unselectChip(SPI,DAC_SPI);
  	}
 	else
 		gpio_clr_gpio_pin(B10);
@@ -812,6 +515,7 @@ static void handler_PollADC(s32 data) {
 		clock_time = i;
 		basetime = i << 16;
 
+/*
 		calctimes[0][tTrans] = (basetime * k.kp[0][p].tmul[tTrans]) / k.kp[0][p].tdiv[tTrans];
 		calctimes[0][tScale] = (basetime * k.kp[0][p].tmul[tScale]) / k.kp[0][p].tdiv[tScale];
 		calctimes[0][tNote] = (basetime * k.kp[0][p].tmul[tNote]) / k.kp[0][p].tdiv[tNote];
@@ -827,6 +531,7 @@ static void handler_PollADC(s32 data) {
 		calctimes[1][tOct] = (basetime * k.kp[1][p].tmul[tOct]) / k.kp[1][p].tdiv[tOct];
 		calctimes[1][tAc] = (basetime * k.kp[1][p].tmul[tAc]) / k.kp[1][p].tdiv[tAc];
 		calctimes[1][tTr] = (basetime * k.kp[1][p].tmul[tTr]) / k.kp[1][p].tdiv[tTr];
+*/
 		// print_dbg("\r\nnew clock (ms): ");
 		// print_dbg_ulong(calctimes[tOct]);
 
@@ -1127,28 +832,28 @@ static void handler_MonomeGridKey(s32 data) {
 				if(z) {
 					if(y == 0) {
 						k.kp[ch][p].tmul[tTr] = x+1;
-						calctimes[ch][tTr] = (basetime * k.kp[ch][p].tmul[tTr]) / k.kp[ch][p].tdiv[tTr];
+						// calctimes[ch][tTr] = (basetime * k.kp[ch][p].tmul[tTr]) / k.kp[ch][p].tdiv[tTr];
 					}
-					else if(y == 1) {
-						k.kp[ch][p].tdiv[tTr] = x+1;
-						calctimes[ch][tTr] = (basetime * k.kp[ch][p].tmul[tTr]) / k.kp[ch][p].tdiv[tTr];
-					}
+					// else if(y == 1) {
+					// 	k.kp[ch][p].tdiv[tTr] = x+1;
+					// 	calctimes[ch][tTr] = (basetime * k.kp[ch][p].tmul[tTr]) / k.kp[ch][p].tdiv[tTr];
+					// }
 					else if(y == 2) {
 						k.kp[ch][p].tmul[tAc] = x+1;
-						calctimes[ch][tAc] = (basetime * k.kp[ch][p].tmul[tAc]) / k.kp[ch][p].tdiv[tAc];
+						// calctimes[ch][tAc] = (basetime * k.kp[ch][p].tmul[tAc]) / k.kp[ch][p].tdiv[tAc];
 					}
-					else if(y == 3) {
-						k.kp[ch][p].tdiv[tAc] = x+1;
-						calctimes[ch][tAc] = (basetime * k.kp[ch][p].tmul[tAc]) / k.kp[ch][p].tdiv[tAc];
-					}
+					// else if(y == 3) {
+					// 	k.kp[ch][p].tdiv[tAc] = x+1;
+					// 	calctimes[ch][tAc] = (basetime * k.kp[ch][p].tmul[tAc]) / k.kp[ch][p].tdiv[tAc];
+					// }
 					else if(y == 4) {
 						k.kp[ch][p].tmul[tOct] = x+1;
-						calctimes[ch][tOct] = (basetime * k.kp[ch][p].tmul[tOct]) / k.kp[ch][p].tdiv[tOct];
+						// calctimes[ch][tOct] = (basetime * k.kp[ch][p].tmul[tOct]) / k.kp[ch][p].tdiv[tOct];
 					}
-					else if(y == 5) {
-						k.kp[ch][p].tdiv[tOct] = x+1;
-						calctimes[ch][tOct] = (basetime * k.kp[ch][p].tmul[tOct]) / k.kp[ch][p].tdiv[tOct];
-					}
+					// else if(y == 5) {
+					// 	k.kp[ch][p].tdiv[tOct] = x+1;
+					// 	calctimes[ch][tOct] = (basetime * k.kp[ch][p].tmul[tOct]) / k.kp[ch][p].tdiv[tOct];
+					// }
 				}
 			}
 		}
@@ -1175,12 +880,12 @@ static void handler_MonomeGridKey(s32 data) {
 				else {
 					if(y == 0) {
 						k.kp[ch][p].tmul[tDur] = x+1;
-						calctimes[ch][tDur] = (basetime * k.kp[ch][p].tmul[tDur]) / k.kp[ch][p].tdiv[tDur];
+						// calctimes[ch][tDur] = (basetime * k.kp[ch][p].tmul[tDur]) / k.kp[ch][p].tdiv[tDur];
 					}
-					else if(y == 1) {
-						k.kp[ch][p].tdiv[tDur] = x+1;
-						calctimes[ch][tDur] = (basetime * k.kp[ch][p].tmul[tDur]) / k.kp[ch][p].tdiv[tDur];
-					}
+					// else if(y == 1) {
+					// 	k.kp[ch][p].tdiv[tDur] = x+1;
+					// 	calctimes[ch][tDur] = (basetime * k.kp[ch][p].tmul[tDur]) / k.kp[ch][p].tdiv[tDur];
+					// }
 				}
 
 				monomeFrameDirty++;
@@ -1206,12 +911,12 @@ static void handler_MonomeGridKey(s32 data) {
 				else {
 					if(y == 0) {
 						k.kp[ch][p].tmul[tNote] = x+1;
-						calctimes[ch][tNote] = (basetime * k.kp[ch][p].tmul[tNote]) / k.kp[ch][p].tdiv[tNote];
+						// calctimes[ch][tNote] = (basetime * k.kp[ch][p].tmul[tNote]) / k.kp[ch][p].tdiv[tNote];
 					}
-					else if(y == 1) {
-						k.kp[ch][p].tdiv[tNote] = x+1;
-						calctimes[ch][tNote] = (basetime * k.kp[ch][p].tmul[tNote]) / k.kp[ch][p].tdiv[tNote];
-					}
+					// else if(y == 1) {
+					// 	k.kp[ch][p].tdiv[tNote] = x+1;
+					// 	calctimes[ch][tNote] = (basetime * k.kp[ch][p].tmul[tNote]) / k.kp[ch][p].tdiv[tNote];
+					// }
 				}
 
 				monomeFrameDirty++;
@@ -1237,12 +942,12 @@ static void handler_MonomeGridKey(s32 data) {
 				else {
 					if(y == 0) {
 						k.kp[ch][p].tmul[tScale] = x+1;
-						calctimes[ch][tScale] = (basetime * k.kp[ch][p].tmul[tScale]) / k.kp[ch][p].tdiv[tScale];
+						// calctimes[ch][tScale] = (basetime * k.kp[ch][p].tmul[tScale]) / k.kp[ch][p].tdiv[tScale];
 					}
-					else if(y == 1) {
-						k.kp[ch][p].tdiv[tScale] = x+1;
-						calctimes[ch][tScale] = (basetime * k.kp[ch][p].tmul[tScale]) / k.kp[ch][p].tdiv[tScale];
-					}
+					// else if(y == 1) {
+					// 	k.kp[ch][p].tdiv[tScale] = x+1;
+					// 	calctimes[ch][tScale] = (basetime * k.kp[ch][p].tmul[tScale]) / k.kp[ch][p].tdiv[tScale];
+					// }
 				}
 				
 				monomeFrameDirty++;
@@ -1272,12 +977,12 @@ static void handler_MonomeGridKey(s32 data) {
 				else {
 					if(y == 0) {
 						k.kp[ch][p].tmul[tTrans] = x+1;
-						calctimes[ch][tTrans] = (basetime * k.kp[ch][p].tmul[tTrans]) / k.kp[ch][p].tdiv[tTrans];
+						// calctimes[ch][tTrans] = (basetime * k.kp[ch][p].tmul[tTrans]) / k.kp[ch][p].tdiv[tTrans];
 					}
-					else if(y == 1) {
-						k.kp[ch][p].tdiv[tTrans] = x+1;
-						calctimes[ch][tTrans] = (basetime * k.kp[ch][p].tmul[tTrans]) / k.kp[ch][p].tdiv[tTrans];
-					}
+					// else if(y == 1) {
+					// 	k.kp[ch][p].tdiv[tTrans] = x+1;
+					// 	calctimes[ch][tTrans] = (basetime * k.kp[ch][p].tmul[tTrans]) / k.kp[ch][p].tdiv[tTrans];
+					// }
 				}
 				monomeFrameDirty++;
 			}
@@ -1361,7 +1066,7 @@ static void handler_MonomeGridKey(s32 data) {
 							k.kp[i1][p_next].llen[i2] = k.kp[i1][p].llen[i2];
 							k.kp[i1][p_next].lswap[i2] = k.kp[i1][p].lswap[i2];
 							k.kp[i1][p_next].tmul[i2] = k.kp[i1][p].tmul[i2];
-							k.kp[i1][p_next].tdiv[i2] = k.kp[i1][p].tdiv[i2];
+							// k.kp[i1][p_next].tdiv[i2] = k.kp[i1][p].tdiv[i2];
 						}
 					}
 
@@ -1549,19 +1254,19 @@ static void refresh() {
 				monomeLedBuffer[i1] = 0;
 
 			monomeLedBuffer[pos[ch][tTr]] = L0;
-			monomeLedBuffer[pos[ch][tTr]+16] = L0;
+			// monomeLedBuffer[pos[ch][tTr]+16] = L0;
 			monomeLedBuffer[k.kp[ch][p].tmul[tTr] - 1] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tTr] - 1 + 16] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tTr] - 1 + 16] = L1;
 
 			monomeLedBuffer[pos[ch][tAc]+32] = L0;
-			monomeLedBuffer[pos[ch][tAc]+48] = L0;
+			// monomeLedBuffer[pos[ch][tAc]+48] = L0;
 			monomeLedBuffer[k.kp[ch][p].tmul[tAc] - 1 + 32] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tAc] - 1 + 48] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tAc] - 1 + 48] = L1;
 
 			monomeLedBuffer[pos[ch][tOct]+64] = L0;
-			monomeLedBuffer[pos[ch][tOct]+80] = L0;
+			// monomeLedBuffer[pos[ch][tOct]+80] = L0;
 			monomeLedBuffer[k.kp[ch][p].tmul[tOct] - 1 + 64] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tOct] - 1 + 80] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tOct] - 1 + 80] = L1;
 		}
 	}
 	else if(mode == mDur) {
@@ -1597,10 +1302,10 @@ static void refresh() {
 				monomeLedBuffer[i1] = 0;
 
 			monomeLedBuffer[pos[ch][tDur]] = L0;
-			monomeLedBuffer[pos[ch][tDur]+16] = L0;
+			// monomeLedBuffer[pos[ch][tDur]+16] = L0;
 
 			monomeLedBuffer[k.kp[ch][p].tmul[tDur] - 1] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tDur] - 1 + 16] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tDur] - 1 + 16] = L1;
 		}
 	}
 	else if(mode == mNote) {
@@ -1627,10 +1332,10 @@ static void refresh() {
 				monomeLedBuffer[i1] = 0;
 
 			monomeLedBuffer[pos[ch][tNote]] = L0;
-			monomeLedBuffer[pos[ch][tNote]+16] = L0;
+			// monomeLedBuffer[pos[ch][tNote]+16] = L0;
 
 			monomeLedBuffer[k.kp[ch][p].tmul[tNote] - 1] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tNote] - 1 + 16] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tNote] - 1 + 16] = L1;
 		}
 	}
 	else if(mode == mScale) {
@@ -1666,10 +1371,10 @@ static void refresh() {
 				monomeLedBuffer[i1] = 0;
 
 			monomeLedBuffer[pos[ch][tScale]] = L0;
-			monomeLedBuffer[pos[ch][tScale]+16] = L0;
+			// monomeLedBuffer[pos[ch][tScale]+16] = L0;
 
 			monomeLedBuffer[k.kp[ch][p].tmul[tScale] - 1] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tScale] - 1 + 16] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tScale] - 1 + 16] = L1;
 		}
 	}
 	else if(mode == mTrans) {
@@ -1703,10 +1408,10 @@ static void refresh() {
 				monomeLedBuffer[i1] = 0;
 
 			monomeLedBuffer[pos[ch][tTrans]] = L0;
-			monomeLedBuffer[pos[ch][tTrans]+16] = L0;
+			// monomeLedBuffer[pos[ch][tTrans]+16] = L0;
 
 			monomeLedBuffer[k.kp[ch][p].tmul[tTrans] - 1] = L2;
-			monomeLedBuffer[k.kp[ch][p].tdiv[tTrans] - 1 + 16] = L1;
+			// monomeLedBuffer[k.kp[ch][p].tdiv[tTrans] - 1 + 16] = L1;
 		}
 	}
 	else if(mode==mScaleEdit) {
@@ -1864,7 +1569,7 @@ void flash_read(void) {
 				k.kp[c][i1].llen[i2] = flashy.k[preset_select].kp[c][i1].llen[i2];
 				k.kp[c][i1].lswap[i2] = flashy.k[preset_select].kp[c][i1].lswap[i2];
 				k.kp[c][i1].tmul[i2] = flashy.k[preset_select].kp[c][i1].tmul[i2];
-				k.kp[c][i1].tdiv[i2] = flashy.k[preset_select].kp[c][i1].tdiv[i2];
+				// k.kp[c][i1].tdiv[i2] = flashy.k[preset_select].kp[c][i1].tdiv[i2];
 			}
 			// k.kp[c][i1].sync = flashy.k[preset_select].kp[c][i1].sync;
 		}
@@ -1957,7 +1662,7 @@ int main(void)
 					k.kp[c][i1].llen[i2] = 6;
 					k.kp[c][i1].lswap[i2] = 0;
 					k.kp[c][i1].tmul[i2] = 1;
-					k.kp[c][i1].tdiv[i2] = 1;
+					// k.kp[c][i1].tdiv[i2] = 1;
 				}
 			}
 		}
@@ -1997,22 +1702,7 @@ int main(void)
 	clock_external = !gpio_get_pin_value(B09);
 
 	timer_add(&note0offTimer,10000,&note0offTimer_callback, NULL);
-	timer_add(&sc0Timer,1000,&sc0Timer_callback, NULL);
-	timer_add(&note0Timer,1000,&note0Timer_callback, NULL);
-	timer_add(&trans0Timer,1000,&trans0Timer_callback, NULL);
-	timer_add(&dur0Timer,1000,&dur0Timer_callback, NULL);
-	timer_add(&oct0Timer,1000,&oct0Timer_callback, NULL);
-	timer_add(&ac0Timer,1000,&ac0Timer_callback, NULL);
-	timer_add(&tr0Timer,1000,&tr0Timer_callback, NULL);
-
 	timer_add(&note1offTimer,10000,&note1offTimer_callback, NULL);
-	timer_add(&trans1Timer,1000,&trans1Timer_callback, NULL);
-	timer_add(&sc1Timer,1000,&sc1Timer_callback, NULL);
-	timer_add(&note1Timer,1000,&note1Timer_callback, NULL);
-	timer_add(&dur1Timer,1000,&dur1Timer_callback, NULL);
-	timer_add(&oct1Timer,1000,&oct1Timer_callback, NULL);
-	timer_add(&ac1Timer,1000,&ac1Timer_callback, NULL);
-	timer_add(&tr1Timer,1000,&tr1Timer_callback, NULL);
 
 	timer_add(&clockTimer,120,&clockTimer_callback, NULL);
 	timer_add(&keyTimer,50,&keyTimer_callback, NULL);
