@@ -27,6 +27,7 @@
 #include "timers.h"
 #include "adc.h"
 #include "util.h"
+#include "cdc.h"
 #include "ftdi.h"
 
 // this
@@ -102,7 +103,7 @@ typedef struct {
 	u8 pscale[7];
 } kria_set;
 
-typedef const struct {
+typedef struct {
 	u8 fresh;
 	modes mode;
 	u8 preset_select;
@@ -159,9 +160,18 @@ re_t re;
 
 
 // NVRAM data structure located in the flash array.
+#ifdef TARGET
 __attribute__((__section__(".flash_nvram")))
 static nvram_data_t flashy;
-
+#else
+nvram_data_t flashy;
+#ifdef DECLARE_NVRAM
+DECLARE_NVRAM(&flashy, sizeof(nvram_data_t))
+#endif
+#ifdef DECLARE_VRAM
+DECLARE_VRAM(&k, sizeof(kria_set))
+#endif
+#endif
 
 u8 pos_mul[2][NUM_PARAMS];
 
@@ -177,7 +187,7 @@ extern void timers_set_monome(void);
 extern void timers_unset_monome(void);
 
 // check the event queue
-static void check_events(void);
+void check_events(void);
 
 // handler protos
 static void handler_None(s32 data) { ;; }
@@ -247,7 +257,7 @@ static void adcTimer_callback(void* o) {
 static void monome_poll_timer_callback(void* obj) {
   // asynchronous, non-blocking read
   // UHC callback spawns appropriate events
-	ftdi_read();
+	serial_read();
 }
 
 // monome refresh callback
@@ -433,17 +443,17 @@ void clock(u8 phase) {
 		monomeFrameDirty++;
 
 		// write to DAC
-		spi_selectChip(SPI,DAC_SPI);
-		spi_write(SPI,0x31);	// update A
-		spi_write(SPI,cv0>>4);
-		spi_write(SPI,cv0<<4);
-		spi_unselectChip(SPI,DAC_SPI);
+		spi_selectChip(DAC_SPI,DAC_SPI_NPCS);
+		spi_write(DAC_SPI,0x31);	// update A
+		spi_write(DAC_SPI,cv0>>4);
+		spi_write(DAC_SPI,cv0<<4);
+		spi_unselectChip(DAC_SPI,DAC_SPI_NPCS);
 
-		spi_selectChip(SPI,DAC_SPI);
-		spi_write(SPI,0x38);	// update B
-		spi_write(SPI,cv1>>4);
-		spi_write(SPI,cv1<<4);
-		spi_unselectChip(SPI,DAC_SPI);
+		spi_selectChip(DAC_SPI,DAC_SPI_NPCS);
+		spi_write(DAC_SPI,0x38);	// update B
+		spi_write(DAC_SPI,cv1>>4);
+		spi_write(DAC_SPI,cv1<<4);
+		spi_unselectChip(DAC_SPI,DAC_SPI_NPCS);
  	}
 	else
 		gpio_clr_gpio_pin(B10);
@@ -1592,9 +1602,9 @@ void flash_read(void) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-// main
+// initialize + main
 
-int main(void)
+void initialize_module()
 {
 	u8 i1,i2,c;
 
@@ -1616,7 +1626,7 @@ int main(void)
 	init_usb_host();
 	init_monome();
 
-	init_i2c_slave(0x10);
+	init_i2c_follower(0x10);
 
 	gpio_clr_gpio_pin(B00);
 	gpio_clr_gpio_pin(B01);
@@ -1715,7 +1725,10 @@ int main(void)
 	// spi_write(SPI,0xff);
 	// spi_write(SPI,0xff);
 	// spi_unselectChip(SPI,DAC_SPI);
+}
 
+int main(void)
+{
 	while (true) {
 		check_events();
 	}
