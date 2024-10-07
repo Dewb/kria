@@ -1492,7 +1492,7 @@ static void refresh_preset() {
 
 
 
-	
+/*
 static void ww_process_ii(uint8_t i, int d) {
 	switch(i) {
 		default:
@@ -1503,7 +1503,7 @@ static void ww_process_ii(uint8_t i, int d) {
   // print_dbg(" ");
   // print_dbg_ulong(d);
 }
-
+*/
 
 
 
@@ -1706,7 +1706,7 @@ void initialize_module()
 
 	re = &refresh;
 
-	process_ii = &ww_process_ii;
+	// process_ii = &ww_process_ii;
 
 	clock_pulse = &clock;
 	clock_external = !gpio_get_pin_value(B09);
